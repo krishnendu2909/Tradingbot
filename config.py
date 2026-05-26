@@ -1,14 +1,17 @@
 # ============================================================
 #  NIFTY OPTIONS ALERT SYSTEM — CONFIG
-#  Edit this file only. Do not touch other files.
 # ============================================================
 
 # --- TELEGRAM ---
 TELEGRAM_BOT_TOKEN = "8259465333:AAG3Tx6KI7XZVoPBALVg2RsSYg6bIzeWD08"   # from @BotFather
 TELEGRAM_CHAT_ID   = "1797060991"     # from @userinfobot
 
-# --- SCAN SETTINGS ---
-SCAN_INTERVAL_MINUTES = 1          # how often to scan during market hours
+# --- ADAPTIVE SCAN SETTINGS ---
+SCAN_INTERVAL_MINUTES       = 1    # base scan every 1 minute
+ALERT_MODE_INTERVAL_SECONDS = 30   # when score hits 80, switch to 30-sec scans
+EXECUTE_MODE_INTERVAL_SECONDS = 10 # when score hits 85, switch to 10-sec scans
+ALERT_MODE_DURATION_MINUTES = 10   # stay in fast mode for 10 min after trigger
+
 ALERT_SCORE_THRESHOLD = 80         # send alert (watch signal)
 EXECUTE_SCORE_THRESHOLD = 85       # send execution signal
 
