@@ -136,3 +136,85 @@ def send_heartbeat(token: str, chat_id: str, message: str) -> None:
         )
     except Exception:
         pass
+
+
+def send_macro_alert(
+    sig: dict, spot: float, vix: float,
+    oc, token: str, chat_id: str
+) -> bool:
+    """Format and send a macro trigger alert (exogenous shock signal)."""
+    direction   = sig["direction"]
+    signal_name = sig["signal"]
+    confidence  = sig["confidence"]
+    detail      = sig["detail"]
+
+    icons = {
+        "VIX_SPIKE":    "⚡",
+        "VIX_COLLAPSE": "💨",
+        "GAP_REVERSE":  "🔄",
+        "CRUDE_SHOCK":  "🛢️",
+        "CRUDE_DROP":   "🟢",
+    }
+    s_icon = icons.get(signal_name, "🔔")
+    d_icon = "📉" if direction == "BEARISH" else "📈"
+
+    ltp_val = 0.0
+    strike  = 0
+    opt     = "CE" if direction == "BULLISH" else "PE"
+
+    if oc:
+        df = oc["df"]
+        otm_pct = 0.02
+        if direction == "BULLISH":
+            strike  = round(spot * (1 + otm_pct) / 50) * 50
+            row     = df[df["strike"] == strike]
+            ltp_val = float(row.iloc[0]["ce_ltp"]) if not row.empty else 0
+        else:
+            strike  = round(spot * (1 - otm_pct) / 50) * 50
+            row     = df[df["strike"] == strike]
+            ltp_val = float(row.iloc[0]["pe_ltp"]) if not row.empty else 0
+
+    sl = round(ltp_val * 0.45, 2)
+    t1 = round(ltp_val * 1.80, 2)
+    t2 = round(ltp_val * 2.50, 2)
+    t3 = round(ltp_val * 3.50, 2)
+
+    lines = [
+        f"{s_icon} <b>MACRO TRIGGER — {signal_name}</b>",
+        "=" * 28,
+        f"{d_icon} <b>{direction}</b> | NIFTY 50",
+        f"Spot: {spot:,.0f}  |  VIX: {vix:.1f}",
+        "",
+        f"<b>Signal:</b> {detail}",
+        "",
+    ]
+    if ltp_val > 0:
+        lines += [
+            f"<b>Option:</b> {strike} {opt}  |  LTP ₹{ltp_val:.2f}",
+            f"📥 <b>Entry:</b>     ₹{ltp_val:.2f}",
+            f"🛑 <b>Stop Loss:</b> ₹{sl}  (−45%)",
+            f"🎯 <b>T1:</b>        ₹{t1}  (+80%)",
+            f"🎯 <b>T2:</b>        ₹{t2}  (+150%)",
+            f"🎯 <b>T3:</b>        ₹{t3}  (+250%)",
+            "",
+        ]
+    lines += [
+        f"💡 <b>Confidence:</b> {confidence:.0f}%",
+        "",
+        "<i>⚠️ Macro trigger — exit immediately if trigger reverses.</i>",
+        "<i>Not SEBI advice. Trade at your own risk.</i>",
+    ]
+
+    try:
+        resp = requests.post(
+            _telegram_url(token, "sendMessage"),
+            json={"chat_id": chat_id, "text": "\n".join(lines), "parse_mode": "HTML"},
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            logger.info(f"Macro alert sent: {signal_name}")
+            return True
+        logger.error(f"Telegram macro error {resp.status_code}: {resp.text}")
+    except Exception as e:
+        logger.error(f"Macro alert send failed: {e}")
+    return False
